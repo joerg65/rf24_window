@@ -147,3 +147,6 @@ dkms.conf
 main copy with serial.c
 hints
 Release/
+backup/
+Debug/
+
