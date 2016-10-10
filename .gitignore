@@ -16,7 +16,7 @@ local.properties
 .recommenders
 
 # Eclipse Core
-.project
+#.project
 
 # External tool builders
 .externalToolBuilders/
@@ -145,3 +145,5 @@ dkms.conf
 
 ### own ignores ##
 main copy with serial.c
+hints
+Release/
