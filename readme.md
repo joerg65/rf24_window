@@ -5,7 +5,8 @@ Monitors the REED contact. It sends every 4s the state of contact and battery vo
 It goes to sleep after sending. The current consumption is about 17uA average. A lithium cell
 CR2450 (650mAh), should stay about 4 years.
 
-The basic of the mirf library I found here: (https://github.com/MattKunze/avr-playground/tree/master/mirf).
+The basic of the mirf library I found here: https://github.com/MattKunze/avr-playground/tree/master/mirf
+And the AESLib I found here: https://github.com/DavyLandman/AESLib
 
 To make it with Eclipse, it must be added the 'AVR Eclipse Plugin' to Eclipse.
 To import the source code to Eclipse I found the easiest way as this:
