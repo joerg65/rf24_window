@@ -11,7 +11,7 @@ tmp/
 *.swp
 *~.nib
 local.properties
-.settings/
+#.settings/
 .loadpath
 .recommenders
 
@@ -28,7 +28,7 @@ local.properties
 *.pydevproject
 
 # CDT-specific (C/C++ Development Tooling)
-.cproject
+#.cproject
 
 # JDT-specific (Eclipse Java Development Tools)
 .classpath
@@ -92,7 +92,7 @@ local.properties
 *.app
 *.i*86
 *.x86_64
-*.hex
+#*.hex
 
 # Debug files
 *.dSYM/
@@ -146,7 +146,7 @@ dkms.conf
 ### own ignores ##
 main copy with serial.c
 hints
-Release/
+#Release/
 backup/
 Debug/
 
