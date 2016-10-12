@@ -36,5 +36,5 @@ To flash with avrdude:
 ```
 avrdude -cavrisp2 -P/dev/ttyACM0 -pt84 -Uflash:w:rf24_window.hex:a -Ulfuse:w:0xe2:m -Uhfuse:w:0xdf:m -Uefuse:w:0xfe:m
 ```
-Of course one need to adjust the '-cavrisp2' to his flashing tool and the port
+Of course one need to adjust the '-cavrisp2' to his flashing tool and depending also the port.
 
