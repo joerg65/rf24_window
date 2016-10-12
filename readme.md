@@ -15,7 +15,7 @@ To import the source code to Eclipse I found the easiest way as this:
 Select File/New/Other and then select C Project and Next. Give Project name and select AVR Cross Target Application and Next. Deselect Debug and the select Finish.
 Next, select your new Project with right mouse click and select Import.../Filesystem and browse for the source code folder. Mark in the left window to select everything and select Finish.
 
-It should build now without errors. To build select Project/Build Project. The output should be:
+It should build now without errors. To build, select Project/Build Project. The output should be:
 ```
 Device: attiny84
 
