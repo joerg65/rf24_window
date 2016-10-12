@@ -6,10 +6,9 @@ After sending the cpu goes sleep. The current consumption is about 17uA average.
 An unconfigured sensor sends it node FFh to the Central in plain data then changes to receiving mode. The Central does a autonumbering an sends the node and the AES key to the sensor. The sensor stores this data to its Flash and does a reboot. From now on it sends every 4 seconds or and pin change of reed contact node, battery value and state (open/closed) to the Central.
 
 The basic of the mirf library I found here: https://github.com/MattKunze/avr-playground/tree/master/mirf  
-
 And the AESLib I found here: https://github.com/DavyLandman/AESLib  
 
-To make it with Eclipse, it must be added the 'AVR Eclipse Plugin' to Eclipse.  
+The project was made with Eclipse, so if someone want to make it with Eclipse, it need to be added the 'AVR Eclipse Plugin' to Eclipse.  
 
 To import the source code to Eclipse I found the easiest way as this:  
 
