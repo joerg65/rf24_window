@@ -31,3 +31,10 @@ Finished building: sizedummy
 
 16:41:36 Build Finished (took 1s.283ms)
 ```
+
+To flash with avrdude:
+```
+avrdude -cavrisp2 -P/dev/ttyACM0 -pt84 -Uflash:w:rf24_window.hex:a -Ulfuse:w:0xe2:m -Uhfuse:w:0xdf:m -Uefuse:w:0xfe:m
+```
+Of course one need to adjust the '-cavrisp2' to his flashing tool and the port
+
