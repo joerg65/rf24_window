@@ -49,7 +49,8 @@ typedef struct {
 	uint16_t v_bat;
 	uint8_t closed;
 	uint8_t error;
-	uint8_t dummy[14];
+	uint16_t crc;
+	uint8_t dummy[12];
 }payload_as_struct;
 
 typedef struct {
@@ -70,7 +71,8 @@ typedef union {
 typedef struct {
 	uint8_t node;
 	uint8_t key[16];
-	uint8_t dummy[3];
+	uint16_t crc;
+	uint8_t dummy[1];
 }payload_init;
 
 typedef struct {
@@ -81,8 +83,6 @@ typedef union {
 	payload_init as_struct;
 	payload_init_as_data as_data;
 }data_payload_init;
-
-//extern uint8_t payload[20];
 
 extern data_payload data_out;
 extern data_payload_init data_in;
@@ -114,6 +114,7 @@ extern data_payload_init data_in;
 extern void mirf_init(void);
 extern void mirf_config(void);
 extern void mirf_reconfig_rx(void);
+extern void mirf_reconfig_tx(void);
 extern uint8_t mirf_status(void);
 extern uint8_t mirf_data_ready(void);
 extern uint8_t mirf_max_rt_reached(void);

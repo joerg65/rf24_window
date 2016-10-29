@@ -77,6 +77,15 @@ void mirf_config(void) {
 }
 
 void mirf_reconfig_rx(void) {
+	POWERDOWN;
+	// Set RADDR and TADDR
+	mirf_write_register(RX_ADDR_P0, TADDR, 5);
+	mirf_write_register(RX_ADDR_P1, RADDR2, 5);
+	mirf_write_register(TX_ADDR, TADDR, 5);
+	RX_POWERUP;
+}
+
+void mirf_reconfig_tx(void) {
 
 	POWERDOWN;
 	// Set RADDR and TADDR
@@ -87,6 +96,7 @@ void mirf_reconfig_rx(void) {
 	// Power up in transmitter mode
 	TX_POWERUP;
 }
+
 
 // Read the status register
 uint8_t mirf_status(void) {

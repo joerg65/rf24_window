@@ -48,12 +48,20 @@
 #include <util/crc16.h>
 #include "mirf.h"
 #include "spi.h"
+
+//#define SERIAL_DEBUG 1
 #ifdef SERIAL_DEBUG
 #include "uart.h"
 #endif
+
+#define WITH_AES 1
+#ifdef WITH_AES
 #include <AESLib.h>
+#endif
 
 #define RWWSRE CTPB
+
+#define TYPE_SENSOR 0 // Window
 
 #define CE  PB2
 #define CSN PA7
@@ -103,11 +111,11 @@ aes_as_union aes_data = {
 		{0x01, 0x0, 0x0, 0xe2, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x00, 0x0, 0x0}}
 };
 
-// Data structure in the flash memory, AESkexy, node and CRC
+// Data structure in the flash memory, AESkey, node and CRC
 // Reserved 64 bytes as the flashing is page based
 const uint8_t config[64] __attribute__((progmem, aligned (64))) = {
 		0x00, 0x00, 0x6e, 0x5a, 0x32, 0x53, 0x62, 0x4b, 0x71, 0x44, 0x4e, 0x4d, 0x37, 0x62, 0x65, 0x00,
-		0xff, 0x00, 0x00, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+		0xff, TYPE_SENSOR, 0x00, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 		0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 		0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 };
@@ -115,7 +123,10 @@ const uint8_t config[64] __attribute__((progmem, aligned (64))) = {
 // Pin change interrupt
 ISR (PCINT0_vect)
 {
-	// Nothing to do here
+	//To avoid massive interrupt attack
+	//cli(); //don't do it on this way
+	GIMSK |= (1<<PCIE0);    // switch off the pin change interrupt1
+	wdt_disable();  // disable watchdog
 }
 
 // watchdog interrupt
@@ -144,7 +155,6 @@ void setup (void)
 	// Copy of 32 bytes flash data to aes_data
 	memcpy_P(aes_data.data, config, 32);
 
-
 	node = aes_data.as_struct.buffer[0];
 
 	// Initialize SPI
@@ -161,6 +171,20 @@ void setup (void)
 	DDRB |= (1<<CE); // SPI DO
 	DDRA &= ~(1<<REED); // Reed DI
 
+	//All other defined to DI and pull up
+	DDRA &= ~(1<<PA0);
+	DDRA &= ~(1<<PA1);
+	DDRA &= ~(1<<PA2);
+	PORTA |=  (1<<PA0);
+	PORTA |=  (1<<PA1);
+	PORTA |=  (1<<PA2);
+
+	DDRB &= ~(1<<PB0);
+	DDRB &= ~(1<<PB1);
+	PORTB |=  (1<<PB0);
+	PORTB |=  (1<<PB1);
+	PORTB |=  (1<<PB3);
+
 	// Pin change interrupt
 	PCMSK0  = (1<<PCINT3);  // want pin PA3 / pin 10
 	GIFR  |= (1<<PCIF0);    // clear any outstanding interrupts
@@ -168,10 +192,11 @@ void setup (void)
 
 }  // end of setup
 
-void adc_init(void)
+//Init the ADC to measure the Vcc
+void adc_init_vcc(void)
 {
-	// Set ADC prescaler to 32 - 250KHz sample rate @ 8MHz
-	ADCSRA = (1<<ADPS2);
+	// Set ADC prescaler to 64 - 125KHz sample rate @ 8MHz
+	ADCSRA = (1<<ADPS2) | (1<<ADPS1);
 
 	// adc source=1.1 ref; adc ref (base for the 1023 maximum)=Vcc
 	ADMUX =  0b00100001;
@@ -180,16 +205,31 @@ void adc_init(void)
 	ADCSRA |= (1<<ADEN);
 }
 
+// send the Atiny to sleep
 void goToSleep (void)
 {
 	set_sleep_mode (SLEEP_MODE_PWR_DOWN);
 	ADCSRA = 0;
 	cli ();
+	GIMSK |= (1<<PCIE0);    // enable pin change interrupts
+    PCMSK0 |= _BV(PCINT3);  // Use PB3 as interrupt pin
 	resetWatchdog ();
 	sleep_enable ();
 	sei ();
 	sleep_cpu ();
 	sleep_disable ();
+	sei();
+}
+
+
+//Recreate data_out structure
+void init_data_out(void)
+{
+	data_out.as_struct.node = node;
+	data_out.as_struct.v_bat = 220;
+	data_out.as_struct.type = TYPE_SENSOR;
+	data_out.as_struct.error = 0;
+	data_out.as_struct.closed = 0;
 }
 
 // Flashing a page
@@ -262,15 +302,11 @@ int main (void)
 
 	uint16_t crc = 0;
 	for (j = 0; j < 17; j++) {
-	    crc = _crc16_update(crc, data_out.as_crc.crc[j]);
+	    crc = _crc_xmodem_update(crc, data_out.as_crc.crc[j]);
 	}
 
 	//Recreate data_out structure
-	data_out.as_struct.node = node;
-	data_out.as_struct.v_bat = 220;
-	data_out.as_struct.type = 0;
-	data_out.as_struct.error = 0;
-	data_out.as_struct.closed = 0;
+	init_data_out();
 
 	uint16_t crc_flash = aes_data.as_struct.buffer[1] + (aes_data.as_struct.buffer[2]<<8);
 
@@ -337,22 +373,7 @@ int main (void)
 
 			if ((data_in.as_struct.node > 0) & (data_in.as_struct.node < 255)) {
 				node = data_in.as_struct.node;
-				mirf_reconfig_rx();
-
-				// Calculate CRC16 and save to dat structure pos 17:18
-				data_out.as_crc.crc[0] = node;
-				for (j = 0; j < 16; j++) {
-					data_out.as_crc.crc[j + 1] = data_in.as_struct.key[j];
-				}
-				uint16_t crc = 0;
-				for (j = 0; j < 17; j++)
-				    crc = _crc16_update(crc, data_out.as_crc.crc[j]);
-
-				// Recreate data_out structure
-				data_out.as_struct.node = node;
-				data_out.as_struct.v_bat = 220;
-				data_out.as_struct.type = 0;
-				data_out.as_struct.error = 0;
+				mirf_reconfig_tx();
 
 #ifdef SERIAL_DEBUG
 				serial_print("got node: ");
@@ -372,6 +393,28 @@ int main (void)
 				serial_print_int(crc);
 				serial_print("\r\n");
 #endif
+
+				// Calculate CRC16 and save to dat structure pos 17:18
+				data_out.as_crc.crc[0] = node;
+				for (j = 0; j < 16; j++) {
+					data_out.as_crc.crc[j + 1] = data_in.as_struct.key[j];
+				}
+				uint16_t crc = 0;
+				for (j = 0; j < 17; j++)
+				    crc = _crc_xmodem_update(crc, data_out.as_crc.crc[j]);
+
+				// Check the CRC to avoid false init messages
+				if (crc != data_in.as_struct.crc) {
+#ifdef SERIAL_DEBUG
+					serial_print("Bad CRC, make a restart ...\r\n");
+					_delay_ms(20);
+#endif
+					// Do a soft reset
+					resetFunc();
+				}
+
+				// Recreate data_out structure
+				init_data_out();
 
 				memcpy( aes_data.as_struct.key, data_in.as_struct.key, 16);
 
@@ -409,11 +452,20 @@ int main (void)
 		serial_print("waked up...\r\n");
 #endif
 
+
 		// Initialize the adc
-		adc_init();
+		adc_init_vcc();
 		data_out.as_struct.v_bat = 0;
 
-    	_delay_ms(1);
+    	_delay_ms(2);
+
+    	// Check if the REED is closed
+    	if (PINA & (1<<REED)) {
+    		data_out.as_struct.closed = 1;
+    	}
+    	else {
+    		data_out.as_struct.closed = 0;
+    	}
 
     	// Do 4 times measuring and drop the first
         for (j = 0; j < 4; j++) {
@@ -428,20 +480,23 @@ int main (void)
         // Calculate to mV: vcc = 1100 x 1024 / adc
         data_out.as_struct.v_bat = 1126400L / data_out.as_struct.v_bat;
 
-    	// Check if the REED is closed
-    	if (PINA & (1<<REED)) {
-    		data_out.as_struct.closed = 1;
-    	}
-    	else {
-    		data_out.as_struct.closed = 0;
+
+        //build the crc from first 6 bytes
+    	crc = 0;
+    	for (j = 0; j < 5; j++) {
+    	    crc = _crc_xmodem_update(crc, data_out.as_data.data[j]);
     	}
 
+    	data_out.as_struct.crc = crc;
+
+#ifdef WITH_AES
     	// Encryption of payload
     	memcpy( aes_data.as_struct.buffer, data_out.as_data.data, 16);
 
     	aes128_enc_single(aes_data.as_struct.key, aes_data.as_struct.buffer);
 
     	memcpy( data_out.as_data.data, aes_data.as_struct.buffer, 16);
+#endif
 
     	// Power up the nRF24L01
     	TX_POWERUP;
@@ -451,10 +506,7 @@ int main (void)
     	mirf_transmit_data();
 
     	// Recreate data_out structure
-    	data_out.as_struct.node = node;
-    	data_out.as_struct.v_bat = 220;
-    	data_out.as_struct.type = 0;
-    	data_out.as_struct.error = 0;
+    	init_data_out();
 
 	}
 }  // end of loop

@@ -142,7 +142,9 @@
 						</toolChain>
 					</folderInfo>
 					<fileInfo id="de.innot.avreclipse.configuration.app.release.228396422.793992295" name="main copy with serial.c" rcbsApplicability="disable" resourcePath="main copy with serial.c" toolsToInvoke="de.innot.avreclipse.tool.compiler.winavr.app.release.1009051091.113545868">
-						<tool id="de.innot.avreclipse.tool.compiler.winavr.app.release.1009051091.113545868" name="AVR Compiler" superClass="de.innot.avreclipse.tool.compiler.winavr.app.release.1009051091"/>
+						<tool id="de.innot.avreclipse.tool.compiler.winavr.app.release.1009051091.113545868" name="AVR Compiler" superClass="de.innot.avreclipse.tool.compiler.winavr.app.release.1009051091">
+							<inputType id="de.innot.avreclipse.compiler.winavr.input.1383134520" name="C Source Files" superClass="de.innot.avreclipse.compiler.winavr.input"/>
+						</tool>
 					</fileInfo>
 					<sourceEntries>
 						<entry excluding="main copy with serial.c|aes" flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name=""/>
