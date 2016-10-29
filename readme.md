@@ -3,7 +3,7 @@ Magnetic RF24 Window Sensor
 Runs on ATtiny84. This is part of my Alarm Central written on Odroid C1 / Android.
 Monitors the REED contact. It sends every 4s the state of contact and battery voltage via nRF24.
 After sending the cpu goes sleep. The current consumption is about 17uA average. A lithium cell CR2450 (650mAh), should stay about 4 years. To ensure the minimum of current during sleeping the Brown Out Detection is switched off, this made me to save data like AES key and node to Flash memory, as the EEProm data was inconsistent with switched off Brown Out Detection.  
-An unconfigured sensor sends its node FFh to the Central in plain data then changes to receiving mode. The Central does a autonumbering an sends the node and the AES key to the sensor. The sensor stores this data to its Flash and does a reboot. From now on it sends every 4 seconds, or at pin change of reed contact, node, battery value and state (open/closed) AES128 encrypted to the Central.
+An unconfigured sensor sends its node FFh to the Central in plain data then changes to receiving mode. The Central does a autonumbering an sends the node and the AES128key to the sensor. The message contains a Xmodem CRC16 field at byte17:18. It is calculated over the first 17 bytes byte0 node and byte1:16 AES128key. The sensor stores this data to its Flash and does a reboot. From now on it sends every 4 seconds, or at pin change of reed contact, node, battery value and state (open/closed) AES128 encrypted to the Central.
 
 The basic of the mirf library I found here: https://github.com/MattKunze/avr-playground/tree/master/mirf  
 And the AESLib I found here: https://github.com/DavyLandman/AESLib  
