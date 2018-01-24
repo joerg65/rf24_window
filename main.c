@@ -25,7 +25,7 @@
 //
 //               +-\/-+
 //         VCC  1|o   |14  GND
-//         PB0  2|    |13  PA0
+//      TX PB0  2|    |13  PA0
 //         PB1  3|    |12  PA1
 //   RESET PB3  4|    |11  PA2
 //      CE PB2  5|    |10  PA3 REED
@@ -49,12 +49,12 @@
 #include "mirf.h"
 #include "spi.h"
 
-//#define SERIAL_DEBUG 1
+#define SERIAL_DEBUG 1
 #ifdef SERIAL_DEBUG
 #include "uart.h"
 #endif
 
-#define WITH_AES 1
+//#define WITH_AES 1
 #ifdef WITH_AES
 #include <AESLib.h>
 #endif
@@ -228,8 +228,9 @@ void init_data_out(void)
 	data_out.as_struct.node = node;
 	data_out.as_struct.v_bat = 220;
 	data_out.as_struct.type = TYPE_SENSOR;
-	data_out.as_struct.error = 0;
+	data_out.as_struct.info = node;
 	data_out.as_struct.closed = 0;
+	data_out.as_struct.error = 0;
 }
 
 // Flashing a page
@@ -282,11 +283,19 @@ void boot_program_page (uint16_t address, uint8_t *buf)
 
 int main (void)
 {
-	int j;
+	int cnt1, cnt2;
+
+	unsigned char ResetSrc = MCUSR;   // save reset source
+	MCUSR = 0x00;  // cleared for next reset detection
 
 	setup();
 
 #ifdef SERIAL_DEBUG
+	uart_init();
+#endif
+
+#ifdef SERIAL_DEBUG
+	int j;
 	serial_print("node: ");
 	serial_print_int(node);
 	serial_print("\n\r");
@@ -294,15 +303,17 @@ int main (void)
 	_delay_ms(100);
 #endif
 
+	cnt2 = 0;
+
 	// Calculate a CRC value
 	data_out.as_crc.crc[0] = node;
-	for (j = 0; j < 16; j++) {
-		data_out.as_crc.crc[j + 1] = aes_data.as_struct.key[j];
+	for (cnt1 = 0; cnt1 < 16; cnt1++) {
+		data_out.as_crc.crc[cnt1 + 1] = aes_data.as_struct.key[cnt1];
 	}
 
 	uint16_t crc = 0;
-	for (j = 0; j < 17; j++) {
-	    crc = _crc_xmodem_update(crc, data_out.as_crc.crc[j]);
+	for (cnt1 = 0; cnt1 < 17; cnt1++) {
+	    crc = _crc_xmodem_update(crc, data_out.as_crc.crc[cnt1]);
 	}
 
 	//Recreate data_out structure
@@ -313,7 +324,7 @@ int main (void)
 
 	if (aes_data.as_struct.buffer[0] == 0xff) {
 		data_out.as_struct.node = 0xff;
-		data_out.as_struct.error = 0x01;
+		data_out.as_struct.info = 0xff;
 
 #ifdef SERIAL_DEBUG
 		serial_print("Uninitialized, force node to 0xff\n\r ");
@@ -321,14 +332,33 @@ int main (void)
 
 	} else if (crc != crc_flash) {
 		data_out.as_struct.node = 0xff;
-		data_out.as_struct.error = 0x02;
+		data_out.as_struct.info = 0xff;
 	}
+
+	data_out.as_struct.node = 0xff;
 
 	while (1) {
 
 		while (data_out.as_struct.node == 0xff)
 		{
-			j = 0;
+			//Leave if it was a soft reset
+			if (ResetSrc == 0) {
+				//WD_WDP = (1<<WDP2) | (1<<WDP0); // 0.5s
+				//WD_cnt = 10;
+				data_out.as_struct.node = node;
+				break;
+			}
+			//If was configured before, exit after 5 loops
+			if (data_out.as_struct.info != 0xff) {
+				if (cnt2 > 4) {
+					//WD_WDP = (1<<WDP2) | (1<<WDP0); // 0.5s
+					//WD_cnt = 10;
+					data_out.as_struct.node = node;
+					break;
+				}
+			}
+
+			cnt1 = 0;
 
 #ifdef SERIAL_DEBUG
 			serial_print("node uninitialized: sending payload...\r\n");
@@ -338,15 +368,13 @@ int main (void)
 	    	TX_POWERUP;
 	    	_delay_ms(3);
 
-	    	// send the plain data
+	    	// Send the plain data
 	    	mirf_transmit_data();
 
-	    	POWERDOWN;
-	    	_delay_ms(3);
-
 	    	// Change to listening mode
-			RX_POWERUP;
-			_delay_ms(3);
+
+	    	mirf_reconfig_rx();
+
 			mirf_CSN_lo;
 			spi_transfer(FLUSH_RX);
 			mirf_CSN_hi;
@@ -356,24 +384,35 @@ int main (void)
 			// Wait for incoming requests
 			while (!(mirf_status() & (1<<RX_DR))) {
 				_delay_us(500);
-				j++;
-				if (j > 100) {
+				cnt1++;
+				if (cnt1 > 100) {
 					mirf_CE_lo; // Stop listening
+#ifdef SERIAL_DEBUG
+					serial_print("Timeout...\n\r");
+#endif
 					break; //break after 50ms
 				}
 			}
-			if (j > 100) {
-				_delay_ms(500);
+#ifdef SERIAL_DEBUG
+			if (cnt1 < 100) serial_print("Data received ...\n\r");
+#endif
+			if (cnt1 > 100) {
+				_delay_ms(100);
+				cnt2++;
 				continue;
 			}
+
 			mirf_CE_lo; // Stop listening
 
+#ifdef SERIAL_DEBUG
+			serial_print("Read the data received ...\n\r");
+#endif
 			// Read the data received
 			mirf_receive_data();
 
 			if ((data_in.as_struct.node > 0) & (data_in.as_struct.node < 255)) {
 				node = data_in.as_struct.node;
-				mirf_reconfig_tx();
+
 
 #ifdef SERIAL_DEBUG
 				serial_print("got node: ");
@@ -394,21 +433,37 @@ int main (void)
 				serial_print("\r\n");
 #endif
 
+
 				// Calculate CRC16 and save to dat structure pos 17:18
 				data_out.as_crc.crc[0] = node;
-				for (j = 0; j < 16; j++) {
-					data_out.as_crc.crc[j + 1] = data_in.as_struct.key[j];
+				for (cnt1 = 0; cnt1 < 16; cnt1++) {
+					data_out.as_crc.crc[cnt1 + 1] = data_in.as_struct.key[cnt1];
 				}
 				uint16_t crc = 0;
-				for (j = 0; j < 17; j++)
-				    crc = _crc_xmodem_update(crc, data_out.as_crc.crc[j]);
+				for (cnt1 = 0; cnt1 < 17; cnt1++)
+				    crc = _crc_xmodem_update(crc, data_out.as_crc.crc[cnt1]);
 
 				// Check the CRC to avoid false init messages
 				if (crc != data_in.as_struct.crc) {
+
 #ifdef SERIAL_DEBUG
 					serial_print("Bad CRC, make a restart ...\r\n");
 					_delay_ms(20);
 #endif
+
+					// Failed, set CRC error (1)
+					init_data_out();
+					data_out.as_struct.node = 0xff;
+					data_out.as_struct.info = node;
+					data_out.as_struct.error = 1;
+
+			    	// Power up the nRF24L01
+			    	TX_POWERUP;
+			    	_delay_ms(3);
+
+			    	// send the plain data
+			    	mirf_transmit_data();
+
 					// Do a soft reset
 					resetFunc();
 				}
@@ -435,7 +490,21 @@ int main (void)
 				// Flash the received node and AES key and CRC
 				boot_program_page((uint16_t)config, aes_data.data);
 
+				// Success, send acknowledge (99)
+				init_data_out();
+				data_out.as_struct.node = 0xff;
+				data_out.as_struct.info = node;
+				data_out.as_struct.error = 99;
+
+		    	// Power up the nRF24L01
+		    	TX_POWERUP;
+		    	_delay_ms(3);
+
+		    	// send the plain data
+		    	mirf_transmit_data();
+
 				// Do a soft reset
+				_delay_ms(3);
 				resetFunc();
 			}
 		}
@@ -468,10 +537,10 @@ int main (void)
     	}
 
     	// Do 4 times measuring and drop the first
-        for (j = 0; j < 4; j++) {
+        for (cnt1 = 0; cnt1 < 4; cnt1++) {
        	  ADCSRA |= _BV(ADSC);
        	  while((ADCSRA & (1<<ADSC)) !=0);
-       	  if (j == 0) continue;
+       	  if (cnt1 == 0) continue;
        	  data_out.as_struct.v_bat += ADC;
         }
         // And calculate the average
@@ -483,8 +552,8 @@ int main (void)
 
         //build the crc from first 6 bytes
     	crc = 0;
-    	for (j = 0; j < 5; j++) {
-    	    crc = _crc_xmodem_update(crc, data_out.as_data.data[j]);
+    	for (cnt1 = 0; cnt1 < 5; cnt1++) {
+    	    crc = _crc_xmodem_update(crc, data_out.as_data.data[cnt1]);
     	}
 
     	data_out.as_struct.crc = crc;
@@ -498,9 +567,17 @@ int main (void)
     	memcpy( data_out.as_data.data, aes_data.as_struct.buffer, 16);
 #endif
 
+    	// If it is traffic on the air, do a loop
+    	// without transmitting data
+		RX_POWERUP;
+		_delay_ms(3);
+		if (mirf_is_traffic()) {
+			_delay_ms(1);
+			continue;
+		}
+
     	// Power up the nRF24L01
     	TX_POWERUP;
-    	_delay_ms(3);
 
     	// Send the encrypted payload
     	mirf_transmit_data();
@@ -510,4 +587,3 @@ int main (void)
 
 	}
 }  // end of loop
-

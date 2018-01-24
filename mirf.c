@@ -66,33 +66,39 @@ void mirf_config(void) {
 	
 	// Set RADDR and TADDR
 	mirf_write_register(RX_ADDR_P0, TADDR, 5);
-	mirf_write_register(RX_ADDR_P1, RADDR2, 5);
+	mirf_write_register(RX_ADDR_P1, RADDR, 5);
 	mirf_write_register(TX_ADDR, TADDR, 5);
 	
 	// Enable RX_ADDR_P0 and RX_ADDR_P1 address matching since we also enable auto acknowledgement
 	mirf_config_register(EN_RXADDR, (1<<ERX_P0 | 1<<ERX_P1));
+	mirf_config_register(EN_AA, (1<<ENAA_P0 | 1<<ENAA_P1));
 
 	// Power up in transmitter mode
 	TX_POWERUP;
 }
 
 void mirf_reconfig_rx(void) {
-	POWERDOWN;
+	//POWERDOWN;
 	// Set RADDR and TADDR
 	mirf_write_register(RX_ADDR_P0, TADDR, 5);
-	mirf_write_register(RX_ADDR_P1, RADDR2, 5);
+	mirf_write_register(RX_ADDR_P1, RADDR, 5);
 	mirf_write_register(TX_ADDR, TADDR, 5);
+	mirf_config_register(EN_RXADDR, (1<<ERX_P0 | 1<<ERX_P1));
+	mirf_config_register(EN_AA, (1<<ENAA_P0 | 1<<ENAA_P1));
+
 	RX_POWERUP;
 }
 
 void mirf_reconfig_tx(void) {
 
-	POWERDOWN;
+	//POWERDOWN;
 	// Set RADDR and TADDR
 	mirf_write_register(RX_ADDR_P0, TADDR, 5);
 	mirf_write_register(RX_ADDR_P1, RADDR, 5);
 	mirf_write_register(TX_ADDR, TADDR, 5);
-	
+	mirf_config_register(EN_RXADDR, (1<<ERX_P0 | 1<<ERX_P1));
+	mirf_config_register(EN_AA, (1<<ENAA_P0 | 1<<ENAA_P1));
+
 	// Power up in transmitter mode
 	TX_POWERUP;
 }
@@ -132,6 +138,15 @@ void mirf_get_data(uint8_t *data) {
 	spi_read_data(data, mirf_PAYLOAD); // Read payload
 	mirf_CSN_hi; // Pull up chip select
 	mirf_config_register(STATUS,(1<<RX_DR)); // Reset status register
+}
+
+// Checks if there is no traffic on air
+uint8_t mirf_is_traffic(void) {
+	mirf_CSN_lo; // Pull down chip select
+	spi_transfer(R_REGISTER | (REGISTER_MASK & CD));
+	uint8_t cd = spi_transfer(NOP); // Read status register
+	mirf_CSN_hi; // Pull up chip select
+	return cd & (1<<0);
 }
 
 // Write one byte into the MiRF register

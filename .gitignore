@@ -11,12 +11,13 @@ tmp/
 *.swp
 *~.nib
 local.properties
-#.settings/
+.settings
 .loadpath
 .recommenders
 
 # Eclipse Core
-#.project
+.project
+.cproject
 
 # External tool builders
 .externalToolBuilders/
@@ -28,7 +29,7 @@ local.properties
 *.pydevproject
 
 # CDT-specific (C/C++ Development Tooling)
-#.cproject
+.cproject
 
 # JDT-specific (Eclipse Java Development Tools)
 .classpath
@@ -145,8 +146,7 @@ dkms.conf
 
 ### own ignores ##
 main copy with serial.c
-hints
-#Release/
+hint
 backup/
 Debug/
-
+Release/
